@@ -12,7 +12,7 @@
 // This package is forked from golang.org/x/crypto/pkcs12, which is frozen.
 // The implementation is distilled from https://tools.ietf.org/html/rfc7292
 // and referenced documents.
-package pkcs12 // import "software.sslmate.com/src/go-pkcs12"
+package pkcs12 // import "github.com/redredgroovy/go-pkcs12"
 
 import (
 	"crypto/ecdsa"
@@ -40,6 +40,7 @@ var (
 	oidFriendlyName     = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 1, 9, 20})
 	oidLocalKeyID       = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 1, 9, 21})
 	oidMicrosoftCSPName = asn1.ObjectIdentifier([]int{1, 3, 6, 1, 4, 1, 311, 17, 1})
+	oidTrustedKeyUsage  = asn1.ObjectIdentifier([]int{2, 16, 840, 1, 113894, 746875, 1, 1})
 )
 
 type pfxPdu struct {
@@ -196,6 +197,7 @@ func convertBag(bag *safeBag, password []byte) (*pem.Block, error) {
 
 func convertAttribute(attribute *pkcs12Attribute) (key, value string, err error) {
 	isString := false
+	isBool := false
 
 	switch {
 	case attribute.Id.Equal(oidFriendlyName):
@@ -207,6 +209,9 @@ func convertAttribute(attribute *pkcs12Attribute) (key, value string, err error)
 		// This key is chosen to match OpenSSL.
 		key = "Microsoft CSP Name"
 		isString = true
+	case attribute.Id.Equal(oidTrustedKeyUsage):
+		key = "trustedKeyUsage"
+		isBool = true
 	default:
 		return "", "", errors.New("pkcs12: unknown attribute with OID " + attribute.Id.String())
 	}
@@ -217,6 +222,12 @@ func convertAttribute(attribute *pkcs12Attribute) (key, value string, err error)
 		}
 		if value, err = decodeBMPString(attribute.Value.Bytes); err != nil {
 			return "", "", err
+		}
+	} else if isBool {
+		if len(attribute.Value.Bytes) > 0 {
+			value = "1"
+		} else {
+			value = "0"
 		}
 	} else {
 		var id []byte
@@ -291,12 +302,14 @@ func DecodeChain(pfxData []byte, password string) (privateKey interface{}, certi
 		}
 	}
 
-	if certificate == nil {
-		return nil, nil, nil, errors.New("pkcs12: certificate missing")
-	}
-	if privateKey == nil {
-		return nil, nil, nil, errors.New("pkcs12: private key missing")
-	}
+	/*
+		if certificate == nil {
+			return nil, nil, nil, errors.New("pkcs12: certificate missing")
+		}
+		if privateKey == nil {
+			return nil, nil, nil, errors.New("pkcs12: private key missing")
+		}
+	*/
 
 	return
 }
@@ -342,9 +355,11 @@ func getSafeContents(p12Data, password []byte) (bags []safeBag, updatedPassword 
 		return nil, nil, err
 	}
 
-	if len(authenticatedSafe) != 2 {
-		return nil, nil, NotImplementedError("expected exactly two items in the authenticated safe")
-	}
+	/*
+		if len(authenticatedSafe) != 2 {
+			return nil, nil, NotImplementedError("expected exactly two items in the authenticated safe")
+		}
+	*/
 
 	for _, ci := range authenticatedSafe {
 		var data []byte
